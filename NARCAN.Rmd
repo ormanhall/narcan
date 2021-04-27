@@ -1,0 +1,155 @@
+
+---
+output: pdf_document
+fontsize: 12pt
+always_allow_html: true
+header-includes:
+   - \usepackage{caption}
+   - \captionsetup{labelfont=bf, labelsep = newline}
+   - \usepackage{floatrow}
+   - \floatsetup[figure]{capposition=top}
+  
+  
+---
+
+\pagenumbering{gobble}
+\clearpage
+\thispagestyle{empty}
+
+\begin{titlepage}
+
+
+
+
+\end{titlepage}
+\captionsetup[table]{
+  labelsep=newline,
+justification=justified,
+  singlelinecheck=false, %textfont=it,
+}
+\clearpage
+\tableofcontents
+\clearpage
+\listoftables
+\listoffigures
+
+\newpage
+
+\pagenumbering{arabic}
+
+
+```{r, echo=FALSE, include=FALSE,}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE)
+library(kableExtra)
+library(tidyverse)
+library(scales)
+library(lubridate)
+library(forecast)
+library(zoo)
+library(sjmisc)
+library(imputeTS)
+library(janitor)
+extrafont::loadfonts()
+library(knitr)
+```
+
+
+```{r, echo=FALSE, message=FALSE,warning=FALSE}
+setwd("c:/naloxone")
+narcan20 <- read.csv("NARCAN20.CSV") %>% filter(County=="Cuyahoga")
+narcan20$TOTKITS<-as.numeric(narcan20$TOTKITS)
+narcan20$ODHKITS<-as.numeric(narcan20$ODHKITS)
+narcan20$OTHKITS<-as.numeric(narcan20$OTHKITS)
+narcan20$TRAINED<-as.numeric(narcan20$TRAINED)
+narcan20$REVERSALS<-as.numeric(narcan20$REVERSALS)
+narcan20 %>% mutate_if(is.numeric, funs(na.replace(.,0))) -> narcan20
+summarize(group_by(narcan20,Program),TOTKITS=sum(TOTKITS),TRAINED=sum(TRAINED),REVERSALS=sum(REVERSALS))->NARCSUM
+
+summarize(group_by(narcan20,County),TOTKITS=sum(TOTKITS),TRAINED=sum(TRAINED),REVERSALS=sum(REVERSALS))->NARCSUM2
+read.csv("pop21.csv")->pop21
+
+left_join(NARCSUM2,pop21, by="County") %>% filter(TOTKITS>0) %>% subset(select=-c(CTYNAME))->NARCSUM2
+
+NARCSUM2 %>% mutate(Rate=(TOTKITS/POP*1000))%>% 
+  filter(County!="Statewide")->NARCSUM2
+
+write.csv(NARCSUM,"NARCSUM.csv",row.names=FALSE)
+```
+
+\clearpage
+
+# Introduction
+
+The following graphs and tables have been abstracted from data collected by the Ohio Department of Health on the distribution of Naloxone to Ohio residents in 2020. Also known by the trade name Narcan, the medication is an opioid antagonist that can reverse the effects of opioids like fentanyl, heroin, and prescription opioids. 
+
+Naloxone is a short-acting agent so it is important to make sure persons who have received the drug in response to an overdose are transferred to a medical setting for immediate follow-up care and monitoring.^[(2021). Retrieved 25 April 2021, from https://www.samhsa.gov/medication-assisted-treatment/medications-counseling-related-conditions/naloxone] 
+
+
+\clearpage
+
+# Naloxone Kits Distributed by Program for Cuyahoga County - 2020
+
+A number of agencies and programs supported the state's efforts to provide Naloxone to persons struggling with opioid dependence. the following graph ranks from high to low organizations that distributed naloxone kits in Cuyahoga County during 2020. 
+
+```{r, echo=FALSE,message=FALSE,fig.topcaption=TRUE, dpi=300, fig.cap="Kits Distributed by Program, 2020", fig.width=8,fig.height=9.5,warning=FALSE}
+
+NARCSUM$Program<-factor(NARCSUM$Program) %>% 
+  fct_reorder(NARCSUM$TOTKITS)
+filter(NARCSUM,TOTKITS>99)->NARCSUM
+
+ggplot(NARCSUM, aes(x=Program, y=TOTKITS, fill=TOTKITS)) + 
+  geom_col(alpha=0.9) + coord_flip() +
+  labs(caption = "Source: Ohio Department of Health", y="TOTKITS", x="Program")+
+  theme(axis.title.y=element_text(hjust=0.9,size=8))+
+  scale_fill_gradient(name="TOTAL KITS",low = "gray80", high = "steelblue4")+  
+  theme_minimal()
+```
+
+\clearpage
+
+
+# Citizens Trained in Cuyahoga County to Use Naloxone by Program - 2020 
+
+```{r, echo=FALSE,message=FALSE,fig.topcaption=TRUE, dpi=300, fig.cap="Total Persons Trained by Program, 2020", fig.width=8,fig.height=9.5,warning=FALSE}
+NARCSUM$Program<-factor(NARCSUM$Program) %>% 
+  fct_reorder(NARCSUM$TRAINED)
+filter(NARCSUM,TRAINED>99)->NARCSUM
+
+ggplot(NARCSUM, aes(x=Program, y=TRAINED, fill=TRAINED)) + 
+  geom_col(alpha=0.9) + coord_flip() +
+  labs(caption = "Source: Ohio Department of Health", y="Trained", x="Program")+
+  theme(axis.title.y=element_text(hjust=0.9,size=8))+
+  scale_fill_gradient(name="TRAINED",low = "gray80", high = "steelblue4")+  
+  theme_minimal()
+```
+
+\clearpage
+
+# Overdose Reversals in Cuyahoga County Reported by Program - 2020
+
+```{r, echo=FALSE,message=FALSE,fig.topcaption=TRUE, fig.cap="Overdose Reversals by Program, 2020", fig.width=8,fig.height=9.5,warning=FALSE}
+NARCSUM$Program<-factor(NARCSUM$Program) %>% 
+  fct_reorder(NARCSUM$REVERSALS)
+filter(NARCSUM,REVERSALS>20)->NARCSUM
+
+ggplot(NARCSUM, aes(x=Program, y=REVERSALS, fill=REVERSALS)) + 
+  geom_col(alpha=0.9) + coord_flip() +
+  labs(caption = "Source: Ohio Department of Health", y="Reversals", x="Program")+
+  theme(axis.title.y=element_text(hjust=0.9,size=8))+
+  scale_fill_gradient(name="REVERSALS",low = "gray80", high = "steelblue4")+  
+  theme_minimal()
+```
+
+\clearpage
+
+
+# Cuyahoga County Summary of Kits Distributed, Persons Trained and Overdose Recoveries - 2020
+
+
+
+```{r, echo=FALSE, message=FALSE,warning=FALSE}
+NARCSUM<-read_csv("NARCSUM.csv")
+kbl(NARCSUM, longtable = T,format.args = list(big.mark = " ", scientific = FALSE,align='lr'), caption = "Summary of Naloxone Kits Distributed, Persons Trained and Naloxone Recoveries by Program", booktabs = T) %>%
+add_header_above(c(" ", "Events by Program" = 3)) %>%
+kable_styling(latex_options = c("repeat_header"),full_width = TRUE,font_size=10) %>% column_spec(1, width="30em")
+```
